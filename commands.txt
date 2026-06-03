@@ -1,0 +1,17 @@
+stripe listen --forward-to http://127.0.0.1:8000/api/stripe/webhook
+
+php artisan serve
+stripe listen --forward-to http://127.0.0.1:8000/api/stripe/webhook
+php artisan queue:work
+
+
+  Method
+POST http://127.0.0.1:8000/api/auth/admin/register
+
+Content-Type	application/json
+Go to Body 
+
+{
+  "admin_name": "admin_test_01",
+  "password": "password123"
+}

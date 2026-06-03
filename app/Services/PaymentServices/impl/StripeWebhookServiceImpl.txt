@@ -1,0 +1,194 @@
+<?php
+
+namespace App\Services\PaymentServices\impl;
+
+use App\Enums\Notification\NotificationType;
+use App\Models\Customer\Order;
+use App\Models\Customer\Payment;
+use App\Models\Customer\Refund;
+use App\Services\CustomerServices\InvoiceService;
+use App\Services\NotificationServices\NotificationService;
+use App\Services\PaymentServices\StripeWebhookService;
+use Illuminate\Support\Facades\Log;
+use Stripe\Charge;
+use Stripe\PaymentIntent;
+use Stripe\Webhook;
+
+class StripeWebhookServiceImpl implements StripeWebhookService
+{
+    public function __construct(
+        private InvoiceService $invoiceService,
+        private NotificationService $notificationService
+    ) {}
+
+    public function handle(string $rawPayload, string $sigHeader): void
+    {
+        $event = Webhook::constructEvent(
+            $rawPayload,
+            $sigHeader,
+            (string) config('stripe.webhook_secret')
+        );
+
+        /** @var object $object */
+        $object = $event->data->object;
+
+        match ($event->type) {
+            'payment_intent.succeeded'       => $this->onPaymentIntentSucceeded($object),
+            'payment_intent.payment_failed'  => $this->onPaymentIntentFailed($object),
+            'payment_intent.canceled'        => $this->onPaymentIntentCanceled($object),
+            'payment_intent.requires_action' => null, // already returned to frontend sync
+            'charge.refunded'                => $this->onChargeRefunded($object),
+            'charge.refund.updated'          => $this->onChargeRefundUpdated($object),
+            default                          => null,
+        };
+    }
+
+    // -------------------------------------------------------------------------
+    // payment_intent.succeeded
+    // -------------------------------------------------------------------------
+    private function onPaymentIntentSucceeded(PaymentIntent $intent): void
+    {
+        $payment = Payment::query()
+            ->where('transaction_id', $intent->id)
+            ->first();
+
+        if (!$payment || $payment->status === 'success') {
+            return; // not found or already finalized (idempotent)
+        }
+
+        $payment->update(['status' => 'success', 'paid_at' => now()]);
+
+        $orders = $payment->order;
+
+        Order::query()
+            ->whereIn('id', $orders->pluck('id'))
+            ->update(['payment_status' => 'paid', 'status' => 'confirmed']);
+
+        foreach ($orders as $order) {
+            // Generate invoice (idempotent — returns existing if already generated)
+            try {
+                $this->invoiceService->generateInvoiceForCustomer((int) $order->customer_id, (int) $order->id);
+            } catch (\Throwable $e) {
+                Log::error('Stripe webhook invoice generation failed', [
+                    'order_id'   => $order->id,
+                    'payment_id' => $payment->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+
+            // Send notification
+            try {
+                $this->notificationService->createNotification([
+                    'customer_id' => $order->customer_id,
+                    'order_id'    => $order->id,
+                    'owner_id'    => $order->owner_id,
+                    'type'        => NotificationType::ORDER_CONFIRMED,
+                    'title'       => 'Order Confirmed',
+                    'message'     => "Your order #{$order->id} has been confirmed and is being prepared.",
+                    'target_role' => 'customer',
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('Stripe webhook notification failed', [
+                    'order_id' => $order->id,
+                    'error'    => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // payment_intent.payment_failed
+    // -------------------------------------------------------------------------
+    private function onPaymentIntentFailed(PaymentIntent $intent): void
+    {
+        $payment = Payment::query()
+            ->where('transaction_id', $intent->id)
+            ->first();
+
+        if (!$payment || $payment->status === 'failed') {
+            return;
+        }
+
+        $payment->update(['status' => 'failed']);
+
+        $orderIds = $payment->order->pluck('id');
+
+        Order::query()
+            ->whereIn('id', $orderIds)
+            ->update(['payment_status' => 'failed']);
+    }
+
+    // -------------------------------------------------------------------------
+    // payment_intent.canceled
+    // -------------------------------------------------------------------------
+    private function onPaymentIntentCanceled(PaymentIntent $intent): void
+    {
+        $payment = Payment::query()
+            ->where('transaction_id', $intent->id)
+            ->first();
+
+        if (!$payment) {
+            return;
+        }
+
+        // Map Stripe canceled → our 'failed' status (no dedicated canceled in enum)
+        if (!in_array($payment->status, ['success', 'failed'], true)) {
+            $payment->update(['status' => 'failed']);
+
+            Order::query()
+                ->whereIn('id', $payment->order->pluck('id'))
+                ->update(['payment_status' => 'failed']);
+        }
+    }
+
+    // ----------------
+    // charge.refunded
+    // ----------------
+    private function onChargeRefunded(Charge $charge): void
+    {
+        // Find our payment via the PaymentIntent ID attached to the charge
+        $paymentIntentId = $charge->payment_intent;
+
+        if (!$paymentIntentId) {
+            return;
+        }
+
+        $payment = Payment::query()
+            ->where('transaction_id', $paymentIntentId)
+            ->first();
+
+        if (!$payment) {
+            return;
+        }
+
+        // Move all owner-verified refunds for this payment to 'refunded'
+        Refund::query()
+            ->where('payment_id', $payment->id)
+            ->where('status', 'verified')
+            ->update(['status' => 'refunded']);
+    }
+
+    // -----------------------
+    // charge.refund.updated
+    // -----------------------
+    private function onChargeRefundUpdated(\Stripe\Refund $refund): void
+    {
+        if ($refund->status !== 'failed') {
+            return;
+        }
+
+        // If we stored our refund ID in Stripe metadata, cancel it
+        $ourRefundId = $refund->metadata['our_refund_id'] ?? null;
+
+        if ($ourRefundId) {
+            Refund::query()
+                ->where('id', (int) $ourRefundId)
+                ->whereIn('status', ['verified', 'returning'])
+                ->update(['status' => 'canceled']);
+        } else {
+            Log::warning('Stripe refund failed but no our_refund_id in metadata', [
+                'stripe_refund_id' => $refund->id,
+            ]);
+        }
+    }
+}
