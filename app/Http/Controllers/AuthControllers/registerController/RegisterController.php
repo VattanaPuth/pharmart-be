@@ -69,6 +69,8 @@ class RegisterController extends Controller
                 'message' => 'Register successful',
                 'token' => $result['token'],
                 'user' => $result['user'],
+                'owner' => $result['owner'] ?? null,
+                'customer' => $result['customer'] ?? null,
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);

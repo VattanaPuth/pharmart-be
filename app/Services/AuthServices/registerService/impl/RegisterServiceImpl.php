@@ -106,16 +106,21 @@ public function sendOtp(string $phone): string
                 $user->save();
             }
 
+            $owner = null;
+            $customer = null;
+
             if ($resolvedRole === Role::OWNER) {
-                Owner::firstOrCreate(['register_id' => $user->id]);
+                $owner = Owner::firstOrCreate(['register_id' => $user->id]);
             }
 
             if ($resolvedRole === Role::CUSTOMER) {
-                Customer::firstOrCreate(['register_id' => $user->id]);
+                $customer = Customer::firstOrCreate(['register_id' => $user->id]);
             }
 
             return [
                 'user' => $user,
+                'owner' => $owner,
+                'customer' => $customer,
                 'token' => JWTAuth::claims([
                     'role' => $user->role,
                     'onboarding' => false,
