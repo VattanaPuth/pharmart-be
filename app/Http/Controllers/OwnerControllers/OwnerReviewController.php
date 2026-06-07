@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer\Order;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class OwnerReviewController extends Controller
 {
@@ -25,7 +26,7 @@ class OwnerReviewController extends Controller
 
         $orders = Order::with([
             'customer.information',
-            'items',
+            'items.product',
             'reviews'
         ])
             ->whereHas('owner', function ($q) use ($ownerId) {
@@ -53,9 +54,7 @@ class OwnerReviewController extends Controller
 
                     'name' => $item->product_name,
 
-                    'image' => $item->product_image
-                        ?  $item->product_image
-                        : null,
+                    'image' => $this->resolveItemImage($item),
 
                     'package_name' => $item->package_name,
 
@@ -131,7 +130,7 @@ class OwnerReviewController extends Controller
 
         $order = Order::with([
             'customer.information',
-            'items',
+            'items.product',
             'reviews'
         ])
             ->where('id', $orderId)
@@ -161,7 +160,7 @@ class OwnerReviewController extends Controller
 
                 'name' => $item->product_name,
 
-                'image' => $item->product_image,
+                'image' => $this->resolveItemImage($item),
 
                 'package_name' => $item->package_name,
 
@@ -229,5 +228,14 @@ class OwnerReviewController extends Controller
     private function currentOwnerId(Request $request): ?int
     {
         return $request->user()?->owner?->id;
+    }
+
+    private function resolveItemImage($item): ?string
+    {
+        if ($item->product_image && Storage::disk('public')->exists($item->product_image)) {
+            return $item->product_image;
+        }
+
+        return $item->product?->main_image;
     }
 }
