@@ -14,6 +14,7 @@ use App\Services\AuthServices\googleService\GoogleService;
 use App\Services\AuthServices\googleService\impl\GoogleServiceImpl;
 use App\Services\AuthServices\loginService\impl\LoginServiceImpl;
 use App\Services\AuthServices\loginService\LoginService;
+use App\Services\AuthServices\otpService\impl\LogSmsSender;
 use App\Services\AuthServices\otpService\impl\TwilioSmsSender;
 use App\Services\AuthServices\otpService\impl\OtpServiceImpl;
 use App\Services\AuthServices\otpService\OtpService;

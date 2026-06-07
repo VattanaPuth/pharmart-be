@@ -27,10 +27,10 @@ public function sendOtp(string $phone): string
 {
     $phoneStr = $this->phoneFormat->normalizePhone($phone);
 
-    // 🔥 1. generate token FIRST (must always succeed)
+    // 1. generate token FIRST (must always succeed)
     $pendingToken = (string) Str::uuid();
 
-    // 🔥 2. store session immediately
+    // 2. store session immediately
     Cache::put("pending_register:{$pendingToken}", [
         'phone' => $phoneStr,
         'otp_verified' => false,
@@ -38,16 +38,17 @@ public function sendOtp(string $phone): string
 
     Cache::put("pending_register_phone:{$phoneStr}", $pendingToken, now()->addMinutes(10));
 
-    // 🔥 3. try sending OTP (DO NOT block token if it fails)
+    // 3. try sending OTP (DO NOT block token if it fails)
     try {
         $this->otpService->send($phoneStr);
+    } catch (\DomainException $e) {
+        throw $e;
     } catch (\Throwable $e) {
         // optional: log error, but DO NOT stop flow
         Log::error('OTP send failed: ' . $e->getMessage());
-        
     }
 
-    // 🔥 4. ALWAYS return token
+    // 4. ALWAYS return token
     return $pendingToken;
 }
 
@@ -91,12 +92,12 @@ public function sendOtp(string $phone): string
 
         $result = DB::transaction(function () use ($pending, $resolvedRole) {
 
-            // ✅ prevent duplicate user (VERY IMPORTANT FIX)
+            // prevent duplicate user (VERY IMPORTANT FIX)
             $user = Register::create([
                 'phone' => $pending['phone'],
                 'role' => $resolvedRole->value,
                 'phone_verified_at' => now(),
-                'onboarding_completed' => false, // 🔥 ADD THIS
+                'onboarding_completed' => false, // ADD THIS
             ]);
 
             // ensure role updated

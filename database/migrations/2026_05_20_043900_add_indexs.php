@@ -28,7 +28,6 @@ return new class extends Migration
          */
 
         Schema::table('customer', function (Blueprint $table) {
-            $table->unique('phone', 'customer_phone_unique');
             $table->index('register_id', 'customer_register_id_foreign');
         });
 
@@ -37,11 +36,6 @@ return new class extends Migration
         });
 
         Schema::table('customer_cart_items', function (Blueprint $table) {
-            $table->unique(
-                ['cart_id', 'product_id', 'package_id'],
-                'cart_id'
-            );
-
             $table->index('product_id', 'customer_cart_items_product_id_foreign');
             $table->index('owner_id', 'customer_cart_items_owner_id_foreign');
             $table->index(
@@ -64,7 +58,6 @@ return new class extends Migration
         });
 
         Schema::table('customer_information', function (Blueprint $table) {
-            $table->unique('customer_id', 'customer_information_customer_id_unique');
         });
 
         /**
@@ -73,9 +66,6 @@ return new class extends Migration
          * =========================
          */
         Schema::table('customer_invoice', function (Blueprint $table) {
-            $table->unique('order_id', 'customer_invoice_order_id_unique');
-            $table->unique('invoice_number', 'customer_invoice_invoice_number_unique');
-
             $table->index(['customer_id', 'invoice_date'], 'customer_invoice_customer_id_invoice_date_index');
             $table->index(['owner_id', 'invoice_date'], 'customer_invoice_owner_id_invoice_date_index');
             $table->index('payment_id', 'customer_invoice_payment_id_index');
@@ -83,11 +73,6 @@ return new class extends Migration
         });
 
         Schema::table('customer_invoice_items', function (Blueprint $table) {
-            $table->unique(
-                ['invoice_id', 'order_item_id'],
-                'customer_invoice_items_invoice_id_order_item_id_unique'
-            );
-
             $table->index('order_item_id', 'customer_invoice_items_order_item_id_foreign');
             $table->index('product_id', 'customer_invoice_items_product_id_index');
         });
@@ -156,12 +141,6 @@ return new class extends Migration
          */
         Schema::table('customer_payment_orders', function (Blueprint $table) {
            
-
-            $table->unique(
-                ['payment_id', 'order_id'],
-                'customer_payment_orders_payment_id_order_id_unique'
-            );
-
             $table->index('order_id', 'customer_payment_orders_order_id_index');
         });
 
@@ -189,12 +168,6 @@ return new class extends Migration
          */
         Schema::table('customer_refund_items', function (Blueprint $table) {
            
-
-            $table->unique(
-                ['refund_id', 'order_item_id'],
-                'customer_refund_items_refund_id_order_item_id_unique'
-            );
-
             $table->index('order_item_id', 'customer_refund_items_order_item_id_foreign');
             $table->index('product_id', 'customer_refund_items_product_id_index');
         });
@@ -230,11 +203,6 @@ return new class extends Migration
          */
         Schema::table('owner_business_hour', function (Blueprint $table) {
          
-
-            $table->unique(
-                ['owner_setting_id', 'day_of_week'],
-                'owner_business_hour_owner_setting_id_day_of_week_unique'
-            );
         });
 
         /**
@@ -296,8 +264,6 @@ return new class extends Migration
          */
         Schema::table('owner_setting', function (Blueprint $table) {
           
-
-            $table->unique('owner_id', 'owner_setting_owner_id_unique');
             $table->index('owner_id', 'idx_owner_id');
         });
 
@@ -309,12 +275,6 @@ return new class extends Migration
          */
         Schema::table('payments', function (Blueprint $table) {
          
-
-            $table->unique(
-                ['payment_provider', 'transaction_id'],
-                'payments_payment_provider_transaction_id_unique'
-            );
-
             $table->index(
                 ['customer_id', 'created_at'],
                 'payments_customer_id_created_at_index'
@@ -343,12 +303,6 @@ return new class extends Migration
          */
         Schema::table('product_reviews', function (Blueprint $table) {
           
-
-            $table->unique(
-                ['order_id', 'product_id'],
-                'unique_order_product_review'
-            );
-
             $table->index('product_id', 'idx_product');
             $table->index('customer_id', 'idx_customer');
             $table->index('order_id', 'idx_order');
@@ -372,8 +326,6 @@ return new class extends Migration
          */
         Schema::table('registers', function (Blueprint $table) {
           
-            $table->unique('phone', 'registers_phone_unique');
-            $table->unique('email', 'registers_email_unique');
         });
 
 
@@ -383,10 +335,6 @@ return new class extends Migration
          * =========================
          */
         Schema::table('sessions', function (Blueprint $table) {
-         
-
-            $table->index('user_id', 'sessions_user_id_index');
-            $table->index('last_activity', 'sessions_last_activity_index');
         });
 
         /**

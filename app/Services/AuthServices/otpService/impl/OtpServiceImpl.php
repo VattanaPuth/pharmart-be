@@ -5,11 +5,13 @@ namespace App\Services\AuthServices\otpService\impl;
 use App\Services\AuthServices\otpService\OtpService;
 use App\Services\AuthServices\otpService\SmsSenderInterface;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class OtpServiceImpl implements OtpService
 {
 
     private const MAX_ATTEMPTS = 5;
+    private const MAX_SENDS_PER_DAY = 15;
     private const OTP_TTL = 5; // minutes
     private const COOLDOWN = 60; // seconds
 
@@ -19,24 +21,40 @@ class OtpServiceImpl implements OtpService
 
     public function send(string $phoneE164): string
     {
+        if (Cache::has($this->cooldownKey($phoneE164))) {
+            throw new \DomainException('Please wait before resending OTP.');
+        }
+
+        $sendCount = (int) Cache::get($this->sendLimitKey($phoneE164), 0);
+
+        if ($sendCount >= self::MAX_SENDS_PER_DAY) {
+            throw new \DomainException('Daily OTP send limit reached. Please try again tomorrow.');
+        }
+
         $code = (string) random_int(100000, 999999);
 
-        Cache::put(
+         Cache::put(
             $this->otpKey($phoneE164),
             hash('sha256', $code),
-            now()->addMinutes(5)
+            now()->addMinutes(self::OTP_TTL)
         );
 
         Cache::put(
             $this->attemptsKey($phoneE164),
             0,
-            now()->addMinutes(5)
+            now()->addMinutes(self::OTP_TTL)
         );
 
         Cache::put(
             $this->cooldownKey($phoneE164),
             true,
-            now()->addSeconds(60)
+            now()->addSeconds(self::COOLDOWN)
+        );
+
+        Cache::put(
+            $this->sendLimitKey($phoneE164),
+            $sendCount + 1,
+            now()->addDay()
         );
 
         $this->sms->smsSend(
@@ -88,14 +106,15 @@ class OtpServiceImpl implements OtpService
     {
         return "otp_cooldown:{$phone}";
     }
+
+    private function sendLimitKey(string $phone): string
+    {
+        return "otp_send_count:{$phone}";
+    }
 public function resend(string $phoneE164): string
 {
-    if (Cache::has($this->cooldownKey($phoneE164))) {
-        throw new \DomainException('Please wait before resending OTP.');
-    }
-
     // OPTIONAL: reset attempts on resend (recommended UX improvement)
-    Cache::put($this->attemptsKey($phoneE164), 0, now()->addMinutes(5));
+    Cache::put($this->attemptsKey($phoneE164), 0, now()->addMinutes(self::OTP_TTL));
 
     return $this->send($phoneE164);
 }

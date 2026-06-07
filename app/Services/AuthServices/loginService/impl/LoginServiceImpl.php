@@ -29,17 +29,17 @@ class LoginServiceImpl implements LoginService
             throw new \Exception('User not found');
         }
 
-        // 🔥 1. generate token FIRST
+        // 1. generate token FIRST
         $pendingToken = (string) Str::uuid();
 
-        // 🔥 2. store session
+        // 2. store session
         Cache::put("pending_login:{$pendingToken}", [
             'phone' => $phone,
             'user_id' => $user->id,
             'otp_verified' => false,
         ], now()->addMinutes(10));
 
-        // 🔥 3. send OTP (DO NOT break flow)
+        // 3. send OTP (DO NOT break flow)
         try {
             $this->otpService->send($phone);
         } catch (\Throwable $e) {
@@ -48,38 +48,6 @@ class LoginServiceImpl implements LoginService
 
         return $pendingToken;
     }
-
-
-    // public function verifyOtp(string $pendingToken, string $code): array
-    // {
-    //     $pendingKey = "pending_login:{$pendingToken}";
-    //     $pending = Cache::get($pendingKey);
-
-    //     if (! $pending) {
-    //         throw new \Exception('Session expired. Please request OTP again.');
-    //     }
-
-    //     $this->otpService->verify($pending['phone'], $code);
-
-    //     $user = Register::find($pending['user_id']);
-
-    //     if (! $user) {
-    //         throw new \Exception('User not found');
-    //     }
-
-    //     $token = JWTAuth::fromUser($user);
-
-    //     // if (! JWTAuth::setToken($token)->check()) {
-    //     //     throw new \Exception('Unable to validate login token. Please try again.');
-    //     // }
-
-    //     Cache::forget($pendingKey);
-
-    //     return [
-    //         'user' => $user,
-    //         'token' => $token,
-    //     ];
-    // }
 
     public function verifyOtp(string $pendingToken, string $code): array
     {
@@ -98,7 +66,7 @@ class LoginServiceImpl implements LoginService
             throw new \Exception('User not found');
         }
 
-        // 🔥 CREATE JWT WITH CLAIMS (same as Google)
+        // CREATE JWT WITH CLAIMS (same as Google)
         $token = JWTAuth::claims([
             'role' => $user->role,
             'onboarding' => $user->onboarding_completed ?? 0,
