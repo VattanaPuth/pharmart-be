@@ -67,7 +67,7 @@ class OwnerEkycController extends Controller
                 'phone_number',
                 'email',
             ]),
-            'status' => $ekyc->ekyc_review ?? 'draft',
+            'status' => $ekyc->status ?? 'draft',
         ]);
     }
 
@@ -103,8 +103,13 @@ class OwnerEkycController extends Controller
 
             'selfie_completed' => !empty($ekyc->selfie_url),
 
-            'submitted' =>
-            $ekyc->ekyc_review === 'pending',
+            'submitted' => in_array($ekyc->status, [
+                'submitted',
+                'pending_review',
+                'approved',
+                'rejected',
+                'suspended',
+            ], true),
         ]);
     }
 
@@ -311,10 +316,13 @@ class OwnerEkycController extends Controller
             'status' => $ekyc->status ?? 'draft',
 
             // submitted or not
-            'submitted' => $ekyc->status === 'pending'
-                || $ekyc->status === 'approved'
-                || $ekyc->status === 'rejected'
-                || $ekyc->status === 'suspended',
+            'submitted' => in_array($ekyc->status, [
+                'submitted',
+                'pending_review',
+                'approved',
+                'rejected',
+                'suspended',
+            ], true),
 
             // admin review message
             'review_message' => $ekyc->review_message,

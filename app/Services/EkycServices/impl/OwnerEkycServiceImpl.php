@@ -182,11 +182,10 @@ class OwnerEkycServiceImpl implements OwnerEkycService
         // -----------------------
 
         $updatedEkyc = $this->upsert($owner, [
-            'ekyc_review'  => 'pending_review',
             'submitted_at' => Carbon::now(),
             'reviewed_by'  => null,
             'reviewed_at'  => null,
-            'status' => 'submitted'
+            'status' => 'pending_review',
         ]);
 
         // -----------------------
@@ -220,6 +219,7 @@ class OwnerEkycServiceImpl implements OwnerEkycService
         $token = JWTAuth::claims([
             'role' => $user->role,
             'onboarding' => $user->onboarding_completed,
+            'ekyc_status' => $updatedEkyc->status,
         ])->fromUser($user);
         // -----------------------
         // ADMIN NOTIFICATIONS

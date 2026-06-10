@@ -17,7 +17,7 @@ class EkycReviewServiceImpl implements EkycReviewService
     public function getPendingSubmissions(): Collection
     {
         return OwnerEkyc::with('owner.register')
-            ->where('ekyc_review', 'pending')
+            ->whereIn('status', ['submitted', 'pending_review'])
             ->whereNotNull('submitted_at')
             ->orderBy('submitted_at', 'asc')
             ->get();
@@ -50,10 +50,9 @@ class EkycReviewServiceImpl implements EkycReviewService
         }
 
         $updatedEkyc = $this->upsert($owner, [
-            'ekyc_review' => $decision,
+            'status' => $decision,
             'reviewed_by' => $reviewedBy,
             'reviewed_at' => Carbon::now(),
-            'liveness_passed' => $decision === 'approved' ? true : $ekyc->liveness_passed,
         ]);
 
         // Send email notification to owner
